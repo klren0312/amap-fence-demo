@@ -72,23 +72,30 @@ function getCoords(item: ShapeItem): any {
 
 // GCJ-02 转 WGS84
 const PI = Math.PI;
+const A = 6378245.0;
 const EE = 0.00669342162296594323;
 
+function outOfChina(lng: number, lat: number): boolean {
+  return !(lng > 73.66 && lng < 135.05 && lat > 3.86 && lat < 53.55);
+}
+
 function gcj02ToWgs84(lng: number, lat: number): [number, number] {
-  if (Math.abs(lng - 104.4962) < 0.01 && Math.abs(lat - 35.9583) < 0.01) {
-    return [lng, lat];
+  if (outOfChina(lng, lat)) return [lng, lat];
+  let wgsLng = lng;
+  let wgsLat = lat;
+  for (let i = 0; i < 5; i++) {
+    const dlat = _transformLat(wgsLng - 105.0, wgsLat - 35.0);
+    const dlng = _transformLng(wgsLng - 105.0, wgsLat - 35.0);
+    const radlat = (wgsLat / 180.0) * PI;
+    let magic = Math.sin(radlat);
+    magic = 1 - EE * magic * magic;
+    const sqrtmagic = Math.sqrt(magic);
+    const tgLat = (dlat * 180.0) / (((A * (1 - EE)) / (magic * sqrtmagic)) * PI);
+    const tgLng = (dlng * 180.0) / ((A / sqrtmagic) * PI);
+    wgsLng = lng - tgLng;
+    wgsLat = lat - tgLat;
   }
-  let dlat = _transformLat(lng - 105.0, lat - 35.0);
-  let dlng = _transformLng(lng - 105.0, lat - 35.0);
-  const radlat = (lat / 180.0) * PI;
-  let magic = Math.sin(radlat);
-  magic = 1 - EE * magic * magic;
-  const sqrtmagic = Math.sqrt(magic);
-  dlat = (dlat * 180.0) / (((16704128.48075235 * (1 - 0.00335652794728454)) / (magic * sqrtmagic)) * PI);
-  dlng = (dlng * 180.0) / ((16704128.48075235 * sqrtmagic / (1 - EE * magic * magic)) * PI);
-  const mgLat = lat + dlat;
-  const mgLng = lng + dlng;
-  return [lng * 2 - mgLng, lat * 2 - mgLat];
+  return [wgsLng, wgsLat];
 }
 
 function _transformLat(x: number, y: number): number {
@@ -137,9 +144,6 @@ function _convertToWgs84(obj: any): any {
         if (typeof c.lng === "number" && typeof c.lat === "number") {
           const [lng, lat] = gcj02ToWgs84(c.lng, c.lat);
           return { lng, lat };
-        }
-        if (Array.isArray(c)) {
-          return c.map(_convertToWgs84);
         }
         return c;
       }),
