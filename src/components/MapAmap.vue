@@ -30,22 +30,33 @@
       @delete="removeOverlay"
       @toggle-edit="toggleEdit"
     />
-    <div class="point-view">
-      经度：{{ currentLng }}，纬度：{{ currentLat }}
-    </div>
+    <div class="point-view">经度：{{ currentLng }}，纬度：{{ currentLat }}</div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from "vue";
 import AMapLoader from "@amap/amap-jsapi-loader";
+import type {
+  AMapStatic,
+  MapInstance,
+  MouseToolInstance,
+  DistrictSearchInstance,
+  GeocoderInstance,
+  CircleInstance,
+  PolygonInstance,
+  CircleEditorInstance,
+  PolygonEditorInstance,
+  DrawEvent,
+  MapMouseEvent,
+  DistrictResult,
+} from "../types/amap";
 import AddByCoords from "./AddByCoords.vue";
 import ShapeList, { type ShapeItem } from "./ShapeList.vue";
 import MapToolbar from "./MapToolbar.vue";
 import MapSearch from "./MapSearch.vue";
 import PointInFence from "./PointInFence.vue";
 
-// TODO: 替换为你的高德 JS API Key 与安全密钥（securityJsCode）
 const AMAP_KEY = import.meta.env.VITE_AMAP_KEY;
 const AMAP_SECURITY = import.meta.env.VITE_AMAP_SECURITY;
 
@@ -77,19 +88,20 @@ const loading = ref(false);
 const drawing = ref(false);
 
 // 高德 JS API 全局对象
-let AMap: any = null;
+let AMap: AMapStatic | null = null;
 // 地图实例
-let map: any = null;
+let map: MapInstance | null = null;
 // 鼠标绘制工具实例
-let mouseTool: any = null;
+let mouseTool: MouseToolInstance | null = null;
 // 行政区划查询实例
-let district: any = null;
+let district: DistrictSearchInstance | null = null;
 // 地理编码（地址解析）实例
-let geocoder: any = null;
+let geocoder: GeocoderInstance | null = null;
 // 几何计算工具（围栏包含判断等）
-let geometryUtil: any = null;
+let geometryUtil: typeof import("../types/amap").GeometryUtilNamespace | null =
+  null;
 // 当前激活的图形编辑器（保证同时只有一个）
-let activeEditor: any = null;
+let activeEditor: CircleEditorInstance | PolygonEditorInstance | null = null;
 // 当前正在编辑的图形 id
 const editingId = ref<string | null>(null);
 
@@ -98,8 +110,8 @@ const shapes = ref<ShapeItem[]>([]);
 // 图形自增序号，用于生成唯一 id
 let seq = 0;
 
-const currentLng = ref(0)
-const currentLat = ref(0)
+const currentLng = ref(0);
+const currentLat = ref(0);
 
 onMounted(async () => {
   // 配置高德安全密钥
@@ -125,33 +137,38 @@ onMounted(async () => {
   }
 
   // 初始化地图
-  map = new AMap.Map("amap", {
+  map = new AMap!.Map("amap", {
     zoom: 9,
     center: [117.23, 31.82],
   });
-  map.on("mousemove", (e: any) => {
-    currentLng.value = e.lnglat.lng
-    currentLat.value = e.lnglat.lat
+  map.on("mousemove", (e) => {
+    currentLng.value = (e as MapMouseEvent).lnglat.lng;
+    currentLat.value = (e as MapMouseEvent).lnglat.lat;
   });
 
   // 初始化鼠标绘制工具，监听绘制完成事件
-  mouseTool = new AMap.MouseTool(map);
-  mouseTool.on("draw", (e: any) => {
-    const overlay = e.obj;
+  mouseTool = new AMap!.MouseTool(map);
+  mouseTool.on("draw", (e) => {
+    const overlay = (e as DrawEvent).obj;
     // 有 getRadius 方法说明是圆形，否则为多边形
     const type: "Circle" | "Polygon" = overlay.getRadius ? "Circle" : "Polygon";
-    shapes.value.push(makeItem(overlay, type));
+    // 从DrawEvent事件对象中提取overlay实例，确保类型正确
+    const item = makeItem(overlay, type)
+    shapes.value.push(item);
+    overlay.on("click", () => {
+      if (editingId.value !== item.id) startEdit(item);
+    });
     drawing.value = false;
     // 绘制完成后立即停止绘制工具，避免误触再次落笔
-    mouseTool.close(false);
+    mouseTool!.close(false);
   });
 
   // 初始化行政区划查询（subdistrict:1 取下级，extensions:all 返回边界坐标）
-  district = new AMap.DistrictSearch({ subdistrict: 1, extensions: "all" });
+  district = new AMap!.DistrictSearch({ subdistrict: 1, extensions: "all" });
   // 初始化地理编码实例，用于地址搜索
-  geocoder = new AMap.Geocoder({});
+  geocoder = new AMap!.Geocoder({});
   // 几何计算工具，用于判断点是否在围栏内
-  geometryUtil = AMap.GeometryUtil;
+  geometryUtil = AMap!.GeometryUtil;
   loadProvinces();
 });
 
@@ -175,7 +192,7 @@ function styleFor(type: "Circle" | "Polygon") {
 
 // 生成一个图形列表项（含唯一 id 与展示名称）
 function makeItem(
-  overlay: any,
+  overlay: CircleInstance | PolygonInstance,
   type: "Circle" | "Polygon",
   name?: string,
 ): ShapeItem {
@@ -186,7 +203,11 @@ function makeItem(
 }
 
 // 将图形添加到地图与列表，并绑定点击进入编辑的监听
-function addOverlay(overlay: any, type: "Circle" | "Polygon", name?: string) {
+function addOverlay(
+  overlay: CircleInstance | PolygonInstance,
+  type: "Circle" | "Polygon",
+  name?: string,
+) {
   // 新增图形时结束其他编辑，保证同时只有一个编辑器
   stopEdit();
   overlay.setMap(map);
@@ -194,6 +215,7 @@ function addOverlay(overlay: any, type: "Circle" | "Polygon", name?: string) {
   const item = makeItem(overlay, type, name);
   // 点击地图上的图形直接进入编辑模式
   overlay.on("click", () => {
+    console.log(item.id, editingId.value)
     if (editingId.value !== item.id) startEdit(item);
   });
   shapes.value.push(item);
@@ -202,14 +224,14 @@ function addOverlay(overlay: any, type: "Circle" | "Polygon", name?: string) {
 // 开启多边形绘制
 function drawPolygon() {
   cancelDraw();
-  mouseTool.polygon(styleFor("Polygon"));
+  mouseTool!.polygon(styleFor("Polygon"));
   drawing.value = true;
 }
 
 // 开启圆形绘制
 function drawCircle() {
   cancelDraw();
-  mouseTool.circle(styleFor("Circle"));
+  mouseTool!.circle(styleFor("Circle"));
   drawing.value = true;
 }
 
@@ -221,12 +243,12 @@ function cancelDraw() {
 
 // 缩放并平移地图以显示指定图形
 function locateShape(item: ShapeItem) {
-  map.setFitView([item.overlay], false, [60, 60, 60, 60]);
+  map!.setFitView([item.overlay], false, [60, 60, 60, 60]);
 }
 
 // 地址搜索结果选中后，移动地图中心到该坐标
 function searchMoveTo(location: [number, number]) {
-  map.setZoomAndCenter(10, location);
+  map!.setZoomAndCenter(10, location);
 }
 
 // 开始编辑指定图形（圆形用 CircleEditor，多边形用 PolygonEditor）
@@ -234,9 +256,15 @@ function startEdit(item: ShapeItem) {
   stopEdit();
   editingId.value = item.id;
   if (item.type === "Circle") {
-    activeEditor = new AMap.CircleEditor(map, item.overlay);
+    activeEditor = new AMap!.CircleEditor(
+      map as MapInstance,
+      item.overlay as CircleInstance,
+    );
   } else {
-    activeEditor = new AMap.PolygonEditor(map, item.overlay);
+    activeEditor = new AMap!.PolygonEditor(
+      map as MapInstance,
+      item.overlay as PolygonInstance,
+    );
   }
   activeEditor.open();
 }
@@ -275,7 +303,7 @@ function removeOverlay(item: ShapeItem) {
 function onAddByCoords(input: GeoInput) {
   if (input.type === "circle" && input.center && input.radius) {
     const [lng, lat] = input.center;
-    const circle = new AMap.Circle({
+    const circle = new AMap!.Circle({
       center: [lng, lat],
       radius: input.radius,
       ...styleFor("Circle"),
@@ -283,7 +311,7 @@ function onAddByCoords(input: GeoInput) {
     addOverlay(circle, "Circle", `圆形 (${lng.toFixed(4)}, ${lat.toFixed(4)})`);
   } else if (input.type === "polygon" && input.path) {
     const path = input.path.map(([lng, lat]) => [lng, lat]);
-    const poly = new AMap.Polygon({ path, ...styleFor("Polygon") });
+    const poly = new AMap!.Polygon({ path, ...styleFor("Polygon") });
     const [lng, lat] = input.path[0];
     addOverlay(
       poly,
@@ -296,10 +324,10 @@ function onAddByCoords(input: GeoInput) {
 // 加载全国省份列表
 function loadProvinces() {
   loading.value = true;
-  district.search("100000", (status: string, result: any) => {
+  district!.search("100000", (status: string, result: DistrictResult) => {
     loading.value = false;
     if (status === "complete" && result.districtList?.[0]?.districtList) {
-      provinces.value = result.districtList[0].districtList.map((d: any) => ({
+      provinces.value = result.districtList[0].districtList.map((d) => ({
         name: d.name,
         adcode: d.adcode,
       }));
@@ -313,16 +341,19 @@ function onProvinceChange() {
   selectedCity.value = "";
   if (!selectedProvince.value) return;
   loading.value = true;
-  district.search(selectedProvince.value, (status: string, result: any) => {
-    loading.value = false;
-    const children = result.districtList?.[0]?.districtList;
-    if (status === "complete" && children) {
-      cities.value = children.map((d: any) => ({
-        name: d.name,
-        adcode: d.adcode,
-      }));
-    }
-  });
+  district!.search(
+    selectedProvince.value,
+    (status: string, result: DistrictResult) => {
+      loading.value = false;
+      const children = result.districtList?.[0]?.districtList;
+      if (status === "complete" && children) {
+        cities.value = children.map((d) => ({
+          name: d.name,
+          adcode: d.adcode,
+        }));
+      }
+    },
+  );
 }
 
 // 城市切换：选中后直接添加该城市边界
@@ -334,7 +365,7 @@ function onCityChange() {
 function addSelectedBoundary(adcode: string) {
   if (!adcode) return;
   loading.value = true;
-  district.search(adcode, (status: string, result: any) => {
+  district!.search(adcode, (status: string, result: DistrictResult) => {
     loading.value = false;
     if (status !== "complete") {
       alert("加载边界失败，请检查网络");
@@ -347,12 +378,13 @@ function addSelectedBoundary(adcode: string) {
       return;
     }
     const name = districtInfo.name;
-    // 一个区域可能由多段边界组成，逐段绘制
-    boundaries.forEach((path: any[], i: number) => {
-      const poly = new AMap.Polygon({ path, ...styleFor("Polygon") });
-      const suffix = boundaries.length > 1 ? ` (${i + 1})` : "";
-      addOverlay(poly, "Polygon", `${name}${suffix}`);
+    // boundaries 中最后一组为该区域自身完整外轮廓，其余为下属子级（市/区）轮廓。
+    // 只绘制区域自身完整轮廓，避免把每个子级都当成一个独立图形画出来。
+    const poly = new AMap!.Polygon({
+      path: boundaries[boundaries.length - 1],
+      ...styleFor("Polygon"),
     });
+    addOverlay(poly, "Polygon", name);
   });
 }
 </script>

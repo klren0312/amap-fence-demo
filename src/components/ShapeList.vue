@@ -26,12 +26,13 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
+import type { CircleInstance, PolygonInstance } from "../types/amap";
 
 export interface ShapeItem {
   id: string;
   name: string;
-  type: string;
-  overlay: any;
+  type: "Circle" | "Polygon";
+  overlay: CircleInstance | PolygonInstance;
 }
 
 const props = defineProps<{ shapes: ShapeItem[]; editingId?: string | null }>();
@@ -57,16 +58,23 @@ function typeLabel(type: string): string {
 }
 
 // 圆形返回 { center, radius(米) }；多边形等返回顶点 coordinates
-function getCoords(item: ShapeItem): any {
+interface CoordInfo {
+  type: string;
+  center?: { lng: number; lat: number };
+  radius?: number;
+  coordinates?: Array<{ lng: number; lat: number }>;
+}
+
+function getCoords(item: ShapeItem): CoordInfo {
   const overlay = item.overlay;
   if (item.type === "Circle") {
-    const c = overlay.getCenter();
-    return { type: "Circle", center: { lng: c.getLng(), lat: c.getLat() }, radius: overlay.getRadius() };
+    const c = (overlay as CircleInstance).getCenter();
+    return { type: "Circle", center: { lng: c.getLng(), lat: c.getLat() }, radius: (overlay as CircleInstance).getRadius() };
   }
-  const path = overlay.getPath();
+  const path = (overlay as PolygonInstance).getPath();
   return {
     type: item.type,
-    coordinates: path.map((p: any) => ({ lng: p.getLng(), lat: p.getLat() })),
+    coordinates: path.map((p) => ({ lng: p.getLng(), lat: p.getLat() })),
   };
 }
 
@@ -132,7 +140,7 @@ function coordText(item: ShapeItem): string {
   return JSON.stringify(_convertToWgs84(coords), null, 2);
 }
 
-function _convertToWgs84(obj: any): any {
+function _convertToWgs84(obj: CoordInfo): CoordInfo {
   if (obj.center && typeof obj.center.lng === "number" && typeof obj.center.lat === "number") {
     const [lng, lat] = gcj02ToWgs84(obj.center.lng, obj.center.lat);
     return { ...obj, center: { lng, lat } };
@@ -140,7 +148,7 @@ function _convertToWgs84(obj: any): any {
   if (obj.coordinates && Array.isArray(obj.coordinates)) {
     return {
       ...obj,
-      coordinates: obj.coordinates.map((c: any) => {
+      coordinates: obj.coordinates.map((c) => {
         if (typeof c.lng === "number" && typeof c.lat === "number") {
           const [lng, lat] = gcj02ToWgs84(c.lng, c.lat);
           return { lng, lat };
