@@ -11,6 +11,9 @@ importers:
       '@amap/amap-jsapi-loader':
         specifier: ^1.0.1
         version: 1.0.1
+      bmap-draw:
+        specifier: ^1.0.40
+        version: 1.0.40
       ol:
         specifier: ^10.9.0
         version: 10.9.0
@@ -260,6 +263,9 @@ packages:
 
   amap-jsapi-v2-types@1.8.0:
     resolution: {integrity: sha512-CMjyrzFKm0ye96NExAgWH1VfgjqMWLgzkYk38NicQZvIJ0HU4gpm6ZWK/lXzzna1Ik786V/8XtvfjRiaId4zCw==}
+
+  bmap-draw@1.0.40:
+    resolution: {integrity: sha512-ZoCt3DfPjg6gItON7UoMsuyj2gK37BP5sTPfI5rahTHsHqyrr3MWg/2R05GDSamYamExK4HzDZWLZG75Guj+vQ==}
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
@@ -739,6 +745,8 @@ snapshots:
   alien-signals@3.2.1: {}
 
   amap-jsapi-v2-types@1.8.0: {}
+
+  bmap-draw@1.0.40: {}
 
   csstype@3.2.3: {}
 

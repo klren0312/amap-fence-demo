@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@amap/amap-jsapi-loader": "^1.0.1",
+    "bmap-draw": "^1.0.40",
     "ol": "^10.9.0",
     "vue": "^3.5.39"
   },

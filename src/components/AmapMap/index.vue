@@ -50,7 +50,8 @@ import type {
   DrawEvent,
   MapMouseEvent,
   DistrictResult,
-} from "../types/amap";
+  GeometryUtilNamespace
+} from "./amap";
 import AddByCoords from "./AddByCoords.vue";
 import ShapeList, { type ShapeItem } from "./ShapeList.vue";
 import MapToolbar from "./MapToolbar.vue";
@@ -98,8 +99,7 @@ let district: DistrictSearchInstance | null = null;
 // 地理编码（地址解析）实例
 let geocoder: GeocoderInstance | null = null;
 // 几何计算工具（围栏包含判断等）
-let geometryUtil: typeof import("../types/amap").GeometryUtilNamespace | null =
-  null;
+let geometryUtil: typeof GeometryUtilNamespace | null = null;
 // 当前激活的图形编辑器（保证同时只有一个）
 let activeEditor: CircleEditorInstance | PolygonEditorInstance | null = null;
 // 当前正在编辑的图形 id

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import MapAmap from './components/MapAmap.vue'
-// import MapOl from './components/OlMap/index.vue'
+import MapBd from './components/BdMap/index.vue'
+// import MapAmap from './components/AmapMap/index.vue'
 </script>
 
 <template>
-  <MapAmap />
-  <!-- <MapOl /> -->
+  <MapBd />
+  <!-- <MapAmap /> -->
 </template>
