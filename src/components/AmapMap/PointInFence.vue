@@ -18,15 +18,24 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
+import type {
+  CircleInstance,
+  PolygonInstance,
+  GeometryUtilNamespace,
+  ShapeType,
+} from "./amap";
 
-interface ShapeItem {
+export interface ShapeItem {
   id: string;
   name: string;
-  type: string;
-  overlay: any;
+  type: ShapeType;
+  overlay: CircleInstance | PolygonInstance;
 }
 
-const props = defineProps<{ shapes: ShapeItem[]; geometryUtil: any }>();
+const props = defineProps<{
+  shapes: ShapeItem[];
+  geometryUtil: GeometryUtilNamespace | null;
+}>();
 
 const lng = ref("");
 const lat = ref("");
@@ -43,7 +52,7 @@ function test() {
     error.value = "请输入有效的经纬度";
     return;
   }
-  const pt = [x, y];
+  const pt: [number, number] = [x, y];
   const list = props.shapes;
   hasShape.value = list.length > 0;
   if (!list.length) {
@@ -55,21 +64,23 @@ function test() {
   for (const s of list) {
     if (s.type === "Circle") {
       // 圆形：判断点到圆心距离是否小于等于半径
-      const c = s.overlay.getCenter();
+      const c = (s.overlay as CircleInstance).getCenter();
       const center: [number, number] = [c.getLng(), c.getLat()];
       const d = GeometryUtil ? GeometryUtil.distance(center, pt) : Number.MAX_VALUE;
-      const radius = s.overlay.getRadius();
+      const radius = (s.overlay as CircleInstance).getRadius();
       if (d <= radius) {
         result.value = { inside: true, name: s.name };
         return;
       }
     } else {
       // 多边形：判断点是否在环内
-      const path = s.overlay.getPath();
-      const ring = path.map((p: any) => [p.getLng(), p.getLat()]);
-      const inside = GeometryUtil
-        ? GeometryUtil.isPointInRing(pt, ring)
-        : false;
+      const path = (s.overlay as PolygonInstance).getPath();
+      const flat = Array.isArray(path[0]) ? (path[0] as unknown[]) : path;
+      const ring = flat.map((p) => {
+        const ll = p as { getLng: () => number; getLat: () => number };
+        return [ll.getLng(), ll.getLat()] as [number, number];
+      });
+      const inside = GeometryUtil ? GeometryUtil.isPointInRing(pt, ring) : false;
       if (inside) {
         result.value = { inside: true, name: s.name };
         return;

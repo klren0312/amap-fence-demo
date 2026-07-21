@@ -24,6 +24,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
+import type { GeocoderInstance, GeocodeItem } from "./amap";
 
 interface SearchResult {
   name: string;
@@ -31,7 +32,7 @@ interface SearchResult {
   location: [number, number];
 }
 
-const props = defineProps<{ geocoder: any }>();
+const props = defineProps<{ geocoder: GeocoderInstance | null }>();
 const emit = defineEmits<{
   (e: "select", location: [number, number]): void;
 }>();
@@ -45,10 +46,10 @@ function search() {
   if (!kw || !props.geocoder) return;
   loading.value = true;
   results.value = [];
-  props.geocoder.getLocation(kw, (status: string, result: any) => {
+  props.geocoder.getLocation(kw, (status, result) => {
     loading.value = false;
     if (status === "complete" && result.geocodes?.length) {
-      results.value = result.geocodes.map((g: any) => ({
+      results.value = result.geocodes.map((g: GeocodeItem) => ({
         name: g.formattedAddress,
         address: g.addressComponent?.town || g.formattedAddress,
         location: [g.location.lng, g.location.lat] as [number, number],

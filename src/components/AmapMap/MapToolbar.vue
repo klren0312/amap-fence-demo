@@ -14,6 +14,9 @@
     <button :disabled="loading || !selectedProvince" @click="emit('add-boundary', selectedProvince)">
       添加该区域
     </button>
+    <button :class="{ 'is-active': playbackActive }" @click="emit('toggle-playback')">
+      {{ playbackActive ? "退出回放" : "轨迹回放" }}
+    </button>
   </div>
 </template>
 
@@ -30,6 +33,7 @@ const props = defineProps<{
   selectedCity: string;
   loading: boolean;
   drawing: boolean;
+  playbackActive: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -39,6 +43,7 @@ const emit = defineEmits<{
   (e: "province-change"): void;
   (e: "city-change"): void;
   (e: "add-boundary", adcode: string): void;
+  (e: "toggle-playback"): void;
 }>();
 
 const provinceProxy = defineModel<string>("selectedProvince", { required: true });
@@ -83,5 +88,11 @@ function onCityChange() {
 .toolbar button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.toolbar button.is-active {
+  background: #2d8cf0;
+  color: #fff;
+  border-color: #2d8cf0;
 }
 </style>

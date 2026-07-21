@@ -26,12 +26,12 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import type { CircleInstance, PolygonInstance } from "../types/amap";
+import type { CircleInstance, PolygonInstance, ShapeType } from "./amap";
 
 export interface ShapeItem {
   id: string;
   name: string;
-  type: "Circle" | "Polygon";
+  type: ShapeType;
   overlay: CircleInstance | PolygonInstance;
 }
 

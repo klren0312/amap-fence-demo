@@ -9,26 +9,36 @@
       :cities="cities"
       :loading="loading"
       :drawing="drawing"
+      :playbackActive="playbackActive"
       @draw-polygon="drawPolygon"
       @draw-circle="drawCircle"
       @cancel-draw="cancelDraw"
       @province-change="onProvinceChange"
       @city-change="onCityChange"
       @add-boundary="addSelectedBoundary"
+      @toggle-playback="togglePlayback"
     />
 
     <MapSearch :geocoder="geocoder" @select="searchMoveTo" />
 
     <PointInFence :shapes="shapes" :geometry-util="geometryUtil" />
 
-    <AddByCoords @add="onAddByCoords" />
+    <AddByCoords v-if="!playbackActive" @add="onAddByCoords" />
 
     <ShapeList
+      v-if="!playbackActive"
       :shapes="shapes"
       :editing-id="editingId"
       @locate="locateShape"
       @delete="removeOverlay"
       @toggle-edit="toggleEdit"
+    />
+
+    <TrackPlayback
+      v-if="playbackActive"
+      :map="mapRef"
+      :amap="amapRef"
+      @close="togglePlayback"
     />
     <div class="point-view">经度：{{ currentLng }}，纬度：{{ currentLat }}</div>
   </div>
@@ -57,6 +67,7 @@ import ShapeList, { type ShapeItem } from "./ShapeList.vue";
 import MapToolbar from "./MapToolbar.vue";
 import MapSearch from "./MapSearch.vue";
 import PointInFence from "./PointInFence.vue";
+import TrackPlayback from "./TrackPlayback.vue";
 
 const AMAP_KEY = import.meta.env.VITE_AMAP_KEY;
 const AMAP_SECURITY = import.meta.env.VITE_AMAP_SECURITY;
@@ -87,11 +98,17 @@ const selectedCity = ref("");
 const loading = ref(false);
 // 是否正在使用鼠标工具绘制图形
 const drawing = ref(false);
+// 是否处于轨迹回放模式
+const playbackActive = ref(false);
 
 // 高德 JS API 全局对象
 let AMap: AMapStatic | null = null;
+// 暴露给子组件的响应式副本（初始化完成后赋值）
+const amapRef = ref<AMapStatic | null>(null);
 // 地图实例
 let map: MapInstance | null = null;
+// 暴露给子组件的响应式副本（初始化完成后赋值）
+const mapRef = ref<MapInstance | null>(null);
 // 鼠标绘制工具实例
 let mouseTool: MouseToolInstance | null = null;
 // 行政区划查询实例
@@ -99,7 +116,7 @@ let district: DistrictSearchInstance | null = null;
 // 地理编码（地址解析）实例
 let geocoder: GeocoderInstance | null = null;
 // 几何计算工具（围栏包含判断等）
-let geometryUtil: typeof GeometryUtilNamespace | null = null;
+let geometryUtil: GeometryUtilNamespace | null = null;
 // 当前激活的图形编辑器（保证同时只有一个）
 let activeEditor: CircleEditorInstance | PolygonEditorInstance | null = null;
 // 当前正在编辑的图形 id
@@ -109,6 +126,9 @@ const editingId = ref<string | null>(null);
 const shapes = ref<ShapeItem[]>([]);
 // 图形自增序号，用于生成唯一 id
 let seq = 0;
+
+// 存储 overlay 的 click handler，用于移除监听时传给 off()
+const clickHandlers = new WeakMap<object, () => void>();
 
 const currentLng = ref(0);
 const currentLat = ref(0);
@@ -141,17 +161,20 @@ onMounted(async () => {
     zoom: 9,
     center: [117.23, 31.82],
   });
-  map.on("mousemove", (e) => {
-    currentLng.value = (e as MapMouseEvent).lnglat.lng;
-    currentLat.value = (e as MapMouseEvent).lnglat.lat;
+  mapRef.value = map;
+  amapRef.value = AMap;
+  map.on("mousemove", (e: MapMouseEvent) => {
+    currentLng.value = e.lnglat.lng;
+    currentLat.value = e.lnglat.lat;
   });
 
   // 初始化鼠标绘制工具，监听绘制完成事件
   mouseTool = new AMap!.MouseTool(map);
-  mouseTool.on("draw", (e) => {
-    const overlay = (e as DrawEvent).obj;
+  mouseTool.on("draw", (e: DrawEvent) => {
+    const overlay = e.obj;
     // 有 getRadius 方法说明是圆形，否则为多边形
-    const type: "Circle" | "Polygon" = overlay.getRadius ? "Circle" : "Polygon";
+    const type: "Circle" | "Polygon" =
+      "getRadius" in overlay ? "Circle" : "Polygon";
     // 从DrawEvent事件对象中提取overlay实例，确保类型正确
     const item = makeItem(overlay, type)
     shapes.value.push(item);
@@ -170,6 +193,20 @@ onMounted(async () => {
   // 几何计算工具，用于判断点是否在围栏内
   geometryUtil = AMap!.GeometryUtil;
   loadProvinces();
+
+  // 起点标记示例：演示 AMap.Icon / Size / Pixel / Marker / LngLat 的用法
+  const endIcon = new AMap!.Icon({
+    size: new AMap!.Size(25, 34),
+    image: "//a.amap.com/jsapi_demos/static/demo-center/icons/dir-marker.png",
+    imageSize: new AMap!.Size(135, 40),
+    imageOffset: new AMap!.Pixel(-95, -3),
+  });
+  const endMarker = new AMap!.Marker({
+    position: new AMap!.LngLat(116.45, 39.93),
+    icon: endIcon,
+    offset: new AMap!.Pixel(-13, -30),
+  });
+  map.add([endMarker]);
 });
 
 onUnmounted(() => {
@@ -214,10 +251,12 @@ function addOverlay(
   overlay.setOptions(styleFor(type));
   const item = makeItem(overlay, type, name);
   // 点击地图上的图形直接进入编辑模式
-  overlay.on("click", () => {
+  const handler = () => {
     console.log(item.id, editingId.value)
     if (editingId.value !== item.id) startEdit(item);
-  });
+  };
+  overlay.on("click", handler);
+  clickHandlers.set(overlay, handler);
   shapes.value.push(item);
 }
 
@@ -239,6 +278,15 @@ function drawCircle() {
 function cancelDraw() {
   mouseTool?.close(false);
   drawing.value = false;
+}
+
+// 切换轨迹回放模式：进入时关闭绘制/编辑避免冲突，退出时回到围栏模式
+function togglePlayback() {
+  playbackActive.value = !playbackActive.value;
+  if (playbackActive.value) {
+    cancelDraw();
+    stopEdit();
+  }
 }
 
 // 缩放并平移地图以显示指定图形
@@ -291,7 +339,8 @@ function toggleEdit(item: ShapeItem) {
 function removeOverlay(item: ShapeItem) {
   if (editingId.value === item.id) stopEdit();
   try {
-    item.overlay.off("click");
+    const handler = clickHandlers.get(item.overlay);
+    if (handler) item.overlay.off("click", handler);
     item.overlay.setMap(null);
   } catch (e) {
     console.error("移除图形失败", e);
@@ -310,7 +359,7 @@ function onAddByCoords(input: GeoInput) {
     });
     addOverlay(circle, "Circle", `圆形 (${lng.toFixed(4)}, ${lat.toFixed(4)})`);
   } else if (input.type === "polygon" && input.path) {
-    const path = input.path.map(([lng, lat]) => [lng, lat]);
+    const path = input.path.map(([lng, lat]) => [lng, lat] as [number, number]);
     const poly = new AMap!.Polygon({ path, ...styleFor("Polygon") });
     const [lng, lat] = input.path[0];
     addOverlay(

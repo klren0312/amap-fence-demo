@@ -165,15 +165,17 @@ onMounted(async () => {
     drawScene = new library.DrawScene(map, { noLimit: true });
     polygonDraw = new library.PolygonDraw(drawScene, {
       autoViewport: true,
-      hideTip: true,
+      hideTip: false,
       isSeries: false,
       skipEditing: true,
+      enableCalculate: true
     });
     circleDraw = new library.CircleDraw(drawScene, {
       autoViewport: true,
-      hideTip: true,
+      hideTip: false,
       isSeries: false,
       skipEditing: true,
+      enableCalculate: true
     });
     polygonEditor = new library.PolygonEdit(drawScene);
     circleEditor = new library.CircleEdit(drawScene);
@@ -225,6 +227,7 @@ function startDraw(type: DrawingType) {
 
 function handleSceneComplete(event: unknown) {
   if (!drawLibrary) return;
+  console.log(event)
   const { from, overlay } = (event as OperateCompleteEvent).target;
   if (from === drawLibrary.ActionStatus.DRAW_ON_MAP) {
     const type = drawingType.value;
