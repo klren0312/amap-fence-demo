@@ -39,6 +39,7 @@ type CircleDraft = {
   center: [number, number];
   centerLngLat: LngLatInstance;
   centerMarker: MarkerInstance;   // 圆心小圆点
+  radiusLabel: MarkerInstance;    // 半径标注
   preview: CircleInstance;        // AMap.Circle 做预览（米制半径，与成品一致）
   radius: number;                 // 当前半径（米）
   committed: boolean;
@@ -55,10 +56,12 @@ type PolygonDraft = {
 let mode: Mode = null;
 let circleDraft: CircleDraft | null = null;
 let polygonDraft: PolygonDraft | null = null;
+let lastDblclickTime = 0;
 
 function cleanup() {
   if (circleDraft) {
     circleDraft.centerMarker.setMap(null);
+    circleDraft.radiusLabel.setMap(null);
     circleDraft.preview.setMap(null);
     circleDraft = null;
   }
@@ -101,6 +104,8 @@ function start(nextMode: "circle" | "polygon") {
 }
 
 function onMapClick(e: MapMouseEvent) {
+  // 忽略双击前的 click 事件（双击会先触发 click 再触发 dblclick）
+  if (mode === "polygon" && Date.now() - lastDblclickTime < 300) return;
   if (mode === "circle") handleCircleClick(e);
   else if (mode === "polygon") handlePolygonClick(e);
 }
@@ -145,10 +150,23 @@ function handleCircleClick(e: MapMouseEvent) {
     });
     preview.setMap(props.map);
 
+    // 半径标注 Marker
+    const radiusLabel = new props.amap.Marker({
+      position: centerLngLat,
+      map: props.map,
+      content: makeRadiusLabel(0),
+      offset: new props.amap.Pixel(0, -20),
+      anchor: "bottom-center",
+      clickable: false,
+      bubble: true,
+      zIndex: 101,
+    });
+
     circleDraft = {
       center: [lng, lat],
       centerLngLat,
       centerMarker,
+      radiusLabel,
       preview,
       radius: 0,
       committed: false,
@@ -167,6 +185,7 @@ function handleCircleMove(e: MapMouseEvent) {
   const radius = circleDraft.centerLngLat.distance(mouseLngLat);
   circleDraft.radius = radius;
   circleDraft.preview.setRadius(radius);
+  circleDraft.radiusLabel.setContent(makeRadiusLabel(radius));
 }
 
 function finishCircle() {
@@ -198,6 +217,11 @@ function finishCircle() {
 
 function makeCenterDot(): string {
   return `<div style="width:14px;height:14px;border-radius:50%;background:#3388ff;border:2px solid #fff;box-shadow:0 0 3px rgba(0,0,0,.4);pointer-events:none"></div>`;
+}
+
+function makeRadiusLabel(radius: number): string {
+  const display = radius >= 1000 ? (radius / 1000).toFixed(2) + " km" : Math.round(radius) + " m";
+  return `<div style="background:#fff;border:1px solid #3388ff;border-radius:3px;padding:2px 6px;font-size:12px;color:#333;white-space:nowrap;pointer-events:none;box-shadow:0 1px 2px rgba(0,0,0,.2)">${display}</div>`;
 }
 
 // ═══════════════════════ 多边形 ═══════════════════════
@@ -278,11 +302,12 @@ function finishPolygon() {
   draft.edgeLine.setMap(null);
   // 完成后把 polygon 恢复为可交互
   polygon.setOptions({ bubble: false, clickable: true });
-  cleanup();
   emit("drawn", polygon, "Polygon");
+  cleanup();
 }
 
 function onMapDblclick() {
+  lastDblclickTime = Date.now();
   if (mode === "polygon" && polygonDraft && polygonDraft.path.length >= 3) {
     finishPolygon();
   }
