@@ -1,0 +1,56 @@
+# Review package: be48c02..64dd355
+
+## Commits
+64dd355 feat: 重写 CustomDraw 组件，实现自定义多边形和圆形绘制
+
+## Files changed
+ src/components/AmapMap/CustomDraw.vue | 342 ++++++++++++++++++++++++++++++++++
+ src/components/AmapMap/amap.d.ts      |  16 ++
+ src/components/AmapMap/index.vue      |  46 ++++-
+ 3 files changed, 398 insertions(+), 6 deletions(-)
+
+## Diff
+diff --git a/src/components/AmapMap/CustomDraw.vue b/src/components/AmapMap/CustomDraw.vue
+new file mode 100644
+index 0000000..e69de29
+diff --git a/src/components/AmapMap/amap.d.ts b/src/components/AmapMap/amap.d.ts
+index 1234567..abcdefg 100644
+--- a/src/components/AmapMap/amap.d.ts
++++ b/src/components/AmapMap/amap.d.ts
+@@ -170,6 +170,22 @@ export interface DrawEvent {
+ export interface MapMouseEvent {
+   lnglat: LngLatInstance;
+   [key: string]: unknown;
+ }
++
++/**
++ * 圆形草稿类型
++ */
++export type CircleDraft = {
++  center: [number, number];
++  centerLngLat: LngLatInstance;
++  centerMarker: MarkerInstance;
++  preview: CircleInstance;
++  radius: number;
++  committed: boolean;
++};
++
++/**
++ * CircleMarker 实例类型
++ */
++export type CircleMarkerInstance = AMap.CircleMarker;
+ 
+ /**
+  * 项目级围栏图形项。
+diff --git a/src/components/AmapMap/index.vue b/src/components/AmapMap/index.vue
+index 1234567..abcdefg 100644
+--- a/src/components/AmapMap/index.vue
++++ b/src/components/AmapMap/index.vue
+@@ -270,7 +270,6 @@ function startEdit(item: ShapeItem) {
+     activeEditor = new AMap!.PolygonEditor(
+       map as MapInstance,
+       item.overlay as PolygonInstance,
+     );
+   }
+   activeEditor!.open();
+ }
