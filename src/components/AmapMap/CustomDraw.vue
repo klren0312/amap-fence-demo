@@ -185,6 +185,7 @@ function handleCircleMove(e: MapMouseEvent) {
   const radius = circleDraft.centerLngLat.distance(mouseLngLat);
   circleDraft.radius = radius;
   circleDraft.preview.setRadius(radius);
+  circleDraft.radiusLabel.setPosition(mouseLngLat);
   circleDraft.radiusLabel.setContent(makeRadiusLabel(radius));
 }
 
@@ -199,8 +200,9 @@ function finishCircle() {
     return;
   }
 
-  // 移除圆心辅助标记
+  // 移除圆心辅助标记和半径标注
   draft.centerMarker.setMap(null);
+  draft.radiusLabel.setMap(null);
 
   // 复用预览 Circle 作为最终成品，切换为实线样式并开启交互
   draft.preview.setOptions({
