@@ -129,7 +129,6 @@ function handleCircleClick(e: MapMouseEvent) {
       map: props.map,
       content: makeCenterDot(),
       offset: new props.amap.Pixel(-7, -7),
-      anchor: "center",
       clickable: false,
       bubble: true,
     });
@@ -155,8 +154,7 @@ function handleCircleClick(e: MapMouseEvent) {
       position: centerLngLat,
       map: props.map,
       content: makeRadiusLabel(0),
-      offset: new props.amap.Pixel(0, -20),
-      anchor: "bottom-center",
+      offset: new props.amap.Pixel(10, -20),
       clickable: false,
       bubble: true,
       zIndex: 101,
@@ -238,7 +236,6 @@ function handlePolygonClick(e: MapMouseEvent) {
       map: props.map,
       content: makeVertexDot(),
       offset: new props.amap.Pixel(-6, -6),
-      anchor: "center",
       clickable: false,
       bubble: true,
     });
@@ -275,7 +272,6 @@ function handlePolygonClick(e: MapMouseEvent) {
       map: props.map,
       content: makeVertexDot(),
       offset: new props.amap.Pixel(-6, -6),
-      anchor: "center",
       clickable: false,
       bubble: true,
     }),
