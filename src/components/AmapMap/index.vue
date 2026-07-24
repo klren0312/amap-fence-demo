@@ -34,6 +34,15 @@
       @toggle-edit="toggleEdit"
     />
 
+    <CustomDraw
+      v-if="!playbackActive && mapRef && amapRef"
+      ref="customDrawRef"
+      :map="mapRef"
+      :amap="amapRef"
+      @drawn="onCustomDrawn"
+      @cancel="onCustomCancel"
+    />
+
     <TrackPlayback
       v-if="playbackActive"
       :map="mapRef"
@@ -68,6 +77,7 @@ import MapToolbar from "./MapToolbar.vue";
 import MapSearch from "./MapSearch.vue";
 import PointInFence from "./PointInFence.vue";
 import TrackPlayback from "./TrackPlayback.vue";
+import CustomDraw from "./CustomDraw.vue";
 
 const AMAP_KEY = import.meta.env.VITE_AMAP_KEY;
 const AMAP_SECURITY = import.meta.env.VITE_AMAP_SECURITY;
@@ -121,6 +131,8 @@ let geometryUtil: GeometryUtilNamespace | null = null;
 let activeEditor: CircleEditorInstance | PolygonEditorInstance | null = null;
 // 当前正在编辑的图形 id
 const editingId = ref<string | null>(null);
+// 自定义绘制控件实例
+const customDrawRef = ref<InstanceType<typeof CustomDraw> | null>(null);
 
 // 所有已添加的图形列表
 const shapes = ref<ShapeItem[]>([]);
@@ -247,12 +259,17 @@ function addOverlay(
 ) {
   // 新增图形时结束其他编辑，保证同时只有一个编辑器
   stopEdit();
+  // 绘制阶段的 overlay 已挂在地图上，这里显式重设只是为了统一收集；若它已属于当前 map 则为幂等
   overlay.setMap(map);
-  overlay.setOptions(styleFor(type));
+  // 圆形在绘制期间用虚线预览，入库后切换为实线
+  if (type === "Circle") {
+    overlay.setOptions({ ...styleFor(type), strokeStyle: "solid" });
+  } else {
+    overlay.setOptions(styleFor(type));
+  }
   const item = makeItem(overlay, type, name);
   // 点击地图上的图形直接进入编辑模式
   const handler = () => {
-    console.log(item.id, editingId.value)
     if (editingId.value !== item.id) startEdit(item);
   };
   overlay.on("click", handler);
@@ -260,23 +277,40 @@ function addOverlay(
   shapes.value.push(item);
 }
 
-// 开启多边形绘制
+// 开启多边形绘制（自定义：点击顶点 → 移动橡皮筋 → 点击起点/双击闭合）
 function drawPolygon() {
   cancelDraw();
-  mouseTool!.polygon(styleFor("Polygon"));
+  stopEdit();
+  customDrawRef.value?.startPolygon();
   drawing.value = true;
 }
 
-// 开启圆形绘制
+// 开启圆形绘制（自定义：点击圆心 → 移动确定半径 → 再次点击完成）
 function drawCircle() {
   cancelDraw();
-  mouseTool!.circle(styleFor("Circle"));
+  stopEdit();
+  customDrawRef.value?.startCircle();
   drawing.value = true;
 }
 
 // 取消当前绘制（不保留已落笔的图形）
 function cancelDraw() {
+  customDrawRef.value?.cancel();
   mouseTool?.close(false);
+  drawing.value = false;
+}
+
+// 自定义绘制完成：把得到的 overlay 按统一流程加入地图与列表
+function onCustomDrawn(
+  overlay: CircleInstance | PolygonInstance,
+  type: "Circle" | "Polygon",
+) {
+  addOverlay(overlay, type);
+  drawing.value = false;
+}
+
+// 自定义绘制被取消：仅重置绘制状态
+function onCustomCancel() {
   drawing.value = false;
 }
 

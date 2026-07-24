@@ -31,9 +31,12 @@ export type AMapStatic = typeof AMap;
 export type MapInstance = AMap.Map;
 
 export type CircleInstance = AMap.Circle;
+export type CircleMarkerInstance = AMap.CircleMarker;
 export type PolygonInstance = AMap.Polygon;
 export type PolylineInstance = AMap.Polyline;
 export type MarkerInstance = AMap.Marker;
+export type PixelInstance = AMap.Pixel;
+export type LngLatLike = AMap.LngLatLike;
 
 export type CircleEditorInstance = AMap.CircleEditor;
 export type PolygonEditorInstance = AMap.PolygonEditor;
@@ -161,6 +164,19 @@ export interface MapMouseEvent {
   lnglat: LngLatInstance;
   [key: string]: unknown;
 }
+
+/**
+ * 圆形绘制草稿类型。
+ * 用于圆形绘制过程中的状态管理。
+ */
+export type CircleDraft = {
+  center: [number, number];
+  centerLngLat: LngLatInstance;
+  centerMarker: MarkerInstance;
+  preview: CircleInstance;
+  radius: number;
+  committed: boolean;
+};
 
 /**
  * 项目级围栏图形项。
