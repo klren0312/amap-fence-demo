@@ -17,6 +17,7 @@ import type {
   PolylineInstance,
   PixelInstance,
   LngLatInstance,
+  DrawCircleOptions,
 } from "./amap";
 
 const props = defineProps<{
@@ -134,7 +135,8 @@ function handleCircleClick(e: MapMouseEvent) {
     });
 
     // 预览用 Circle：米制半径，与最终成品一致，clickable:false 让点击穿透到地图
-    const preview = new props.amap.Circle({
+    // 使用 DrawCircleOptions（CircleOptions & VectorOverlayOptions）以保留运行时 clickable 属性。
+    const circleOptions: DrawCircleOptions = {
       center: centerLngLat,
       radius: 0,
       strokeColor: "#3388ff",
@@ -146,7 +148,8 @@ function handleCircleClick(e: MapMouseEvent) {
       bubble: true,
       clickable: false,
       zIndex: 100,
-    });
+    };
+    const preview = new props.amap.Circle(circleOptions);
     preview.setMap(props.map);
 
     // 半径标注 Marker
@@ -203,6 +206,7 @@ function finishCircle() {
   draft.radiusLabel.setMap(null);
 
   // 复用预览 Circle 作为最终成品，切换为实线样式并开启交互
+  // setOptions 来自 Overlay，参数类型为 any，clickable 等运行时属性可直接传入。
   draft.preview.setOptions({
     strokeStyle: "solid",
     bubble: false,

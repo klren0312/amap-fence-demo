@@ -32,6 +32,26 @@ export type MapInstance = AMap.Map;
 
 export type CircleInstance = AMap.Circle;
 export type PolygonInstance = AMap.Polygon;
+
+/**
+ * 矢量覆盖物通用选项（clickable 等）补充。
+ *
+ * amap-jsapi-v2-types 的 `CircleOptions` 是 type alias 且未声明 `clickable`、
+ * `map` 等运行时由覆盖物插件提供的通用矢量属性，导致 `new AMap.Circle({ clickable })`
+ * 触发多余属性检查报错。这里定义通用矢量选项接口，并通过交叉类型导出 `DrawCircleOptions`，
+ * 供绘制组件传入含 clickable 的构造参数时使用（详见 CustomDraw.vue）。
+ */
+export interface VectorOverlayOptions {
+  /** 指定该覆盖物是否可点击触发事件，运行时由覆盖物插件提供，官方类型未声明 */
+  clickable?: boolean;
+  /** 覆盖物关联的地图实例 */
+  map?: AMap.Map;
+  /** 覆盖物是否可见 */
+  visible?: boolean;
+}
+
+/** 绘制圆形时使用的完整选项类型（官方 CircleOptions + 通用矢量属性） */
+export type DrawCircleOptions = AMap.CircleOptions & VectorOverlayOptions;
 export type PolylineInstance = AMap.Polyline;
 export type MarkerInstance = AMap.Marker;
 export type PixelInstance = AMap.Pixel;
